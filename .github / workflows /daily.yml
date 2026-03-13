@@ -2,28 +2,23 @@ name: Daily Python Projects Generator
 
 on:
   schedule:
-    - cron: '0 2 * * *'   # 7AM PKT  (PKT = UTC+5, so 7AM PKT = 2AM UTC)
-    - cron: '0 5 * * *'   # 10AM PKT (PKT = UTC+5, so 10AM PKT = 5AM UTC)
-  workflow_dispatch:        # Manual trigger from GitHub Actions UI
+    - cron: '0 2 * * *'   # 7AM PKT
+    - cron: '0 5 * * *'   # 10AM PKT
+  workflow_dispatch:
 
 jobs:
   generate-morning:
     name: Morning Project (7AM PKT)
-    if: github.event.schedule == '0 2 * * *' || github.event_name == 'workflow_dispatch'
+    if: ${{ github.event.schedule == '0 2 * * *' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-
       - name: Install dependencies
         run: pip install google-generativeai requests
-
-      - name: Run Morning Project Generator
+      - name: Run Morning Script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PERSONAL_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
@@ -31,21 +26,16 @@ jobs:
 
   generate-afternoon:
     name: Afternoon Project (10AM PKT)
-    if: github.event.schedule == '0 5 * * *' || github.event_name == 'workflow_dispatch'
+    if: ${{ github.event.schedule == '0 5 * * *' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-
       - name: Install dependencies
         run: pip install google-generativeai requests
-
-      - name: Run Afternoon Project Generator
+      - name: Run Afternoon Script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PERSONAL_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
