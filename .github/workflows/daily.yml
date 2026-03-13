@@ -1,0 +1,42 @@
+name: Daily Python Projects Generator
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # 7AM PKT
+    - cron: '0 5 * * *'   # 10AM PKT
+  workflow_dispatch:
+
+jobs:
+  generate-morning:
+    name: Morning Project (7AM PKT)
+    if: ${{ github.event.schedule == '0 2 * * *' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install google-generativeai requests
+      - name: Run Morning Script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PERSONAL_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
+        run: python project1_morning.py
+
+  generate-afternoon:
+    name: Afternoon Project (10AM PKT)
+    if: ${{ github.event.schedule == '0 5 * * *' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install google-generativeai requests
+      - name: Run Afternoon Script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PERSONAL_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
+        run: python project2_afternoon.py
