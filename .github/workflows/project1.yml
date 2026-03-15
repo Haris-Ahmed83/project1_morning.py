@@ -1,4 +1,4 @@
-name: Project 1 Generator (4:10 PM PKT)
+name: Project 1 Generator (5:00 PM PKT)
 
 on:
   schedule:
@@ -41,10 +41,10 @@ jobs:
           to: ${{ secrets.GMAIL_USER }}
           from: GitHub Actions <${{ secrets.GMAIL_USER }}>
           body: |
-            ✅ Project 1 (4:10 PM PKT) created successfully!
+            ✅ Project 1 (5:00 PM PKT) created successfully!
 
             📅 Date      : ${{ github.event.repository.updated_at }}
-            ⏰ Time      : 4:35 PM PKT
+            ⏰ Time      : 5:00 PM PKT
             🔢 Run #     : ${{ github.run_number }}
             📋 Workflow  : ${{ github.workflow }}
 
@@ -66,9 +66,9 @@ jobs:
           to: ${{ secrets.GMAIL_USER }}
           from: GitHub Actions <${{ secrets.GMAIL_USER }}>
           body: |
-            ❌ Project 1 (4:10 PM PKT) run FAILED!
+            ❌ Project 1 (5:00 PM PKT) run FAILED!
 
-            ⏰ Time      : 4:10 PM PKT
+            ⏰ Time      : 5:00 PM PKT
             🔢 Run #     : ${{ github.run_number }}
 
             🔍 Check the full error log here:
