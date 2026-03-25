@@ -1,7 +1,7 @@
 """
 ====================================================
   Daily Auto GitHub Project Generator - Project 1
-  Runs at 4:10 PM Pakistan Time (11:10 AM UTC)
+  Runs at 5:00 PM Pakistan Time (12:00 PM UTC)
   Uses Google Gemini API (FREE)
 ====================================================
 """
@@ -57,7 +57,7 @@ MODELS = [
 ]
 
 # ============================================================
-#  60 PROJECT TOPICS — PROJECT 1 (4:10 PM)
+#  60 PROJECT TOPICS — PROJECT 1 (5:00 PM)
 # ============================================================
 TOPICS = [
     "Number Guessing Game with 3 difficulty levels easy medium hard and live score tracker",
@@ -135,7 +135,7 @@ _words = [w for w in topic.lower().split() if w not in _stop][:3]
 repo_name = "-".join(_words).replace(",","").replace("(","").replace(")","").replace("/","-")
 
 print(f"{'='*60}")
-print(f"  PROJECT 1  —  4:10 PM PKT")
+print(f"  PROJECT 1  —  5:00 PM PKT")
 print(f"  Date    : {today}")
 print(f"  Topic   : {topic}")
 print(f"  Project : {topic_index + 1} of {len(TOPICS)}")
@@ -251,7 +251,6 @@ def repo_is_empty_check() -> bool:
         f"https://api.github.com/repos/{GITHUB_USER}/{repo_name}/git/refs",
         headers=HEADERS
     )
-    # Empty list [] means no refs = no commits
     return r.status_code == 200 and r.json() == []
 
 def delete_repo():
@@ -261,14 +260,13 @@ def delete_repo():
     )
     return r.status_code == 204
 
-# If the repo exists but is empty (broken state), delete it for a clean start
 if repo_exists():
     if repo_is_empty_check():
         print(f"  [Fix] Repo '{repo_name}' exists but is empty (broken state).")
         print(f"  [Fix] Deleting it for a clean start...")
         if delete_repo():
             print(f"  [OK]  Deleted. Recreating fresh...\n")
-            time.sleep(2)
+            time.sleep(3)   # ✅ FIX: wait for GitHub to fully process deletion
         else:
             print(f"  [ERROR] Could not delete repo. Check token has 'delete_repo' scope.")
             exit(1)
@@ -291,7 +289,7 @@ res = requests.post(
         "name":        repo_name,
         "description": description,
         "private":     False,
-        "auto_init":   False,   # we push the first commit ourselves
+        "auto_init":   False,
         "has_issues":  True,
     }
 )
@@ -304,7 +302,10 @@ else:
     print(f"  [ERROR] {res.status_code}: {res.json().get('message')}")
     exit(1)
 
-time.sleep(2)
+# ✅ FIX: Wait for GitHub to fully initialize the repo's Git database
+# Without this, the Git Data API returns 404 on blob creation (race condition)
+print("  [Wait] Allowing GitHub to initialize repo internals...")
+time.sleep(5)
 
 # ============================================================
 #  DETECT DEFAULT BRANCH
@@ -329,18 +330,29 @@ def push_initial_commit(files: dict) -> bool:
     """One atomic commit with all files using the Git Data API."""
     base = f"https://api.github.com/repos/{GITHUB_USER}/{repo_name}/git"
 
+    # ✅ FIX: Retry blob creation up to 3 times in case GitHub isn't ready yet
+    def create_blob(filepath, content, retries=3, delay=4):
+        for attempt in range(1, retries + 1):
+            r = requests.post(f"{base}/blobs", headers=HEADERS, json={
+                "content":  base64.b64encode(content.encode("utf-8")).decode("utf-8"),
+                "encoding": "base64",
+            })
+            if r.status_code == 201:
+                return r.json()["sha"]
+            print(f"  [Retry {attempt}/{retries}] blob {filepath}: {r.status_code} {r.json()}")
+            if attempt < retries:
+                time.sleep(delay)
+        return None
+
     tree_items = []
     for filepath, content in files.items():
-        r = requests.post(f"{base}/blobs", headers=HEADERS, json={
-            "content":  base64.b64encode(content.encode("utf-8")).decode("utf-8"),
-            "encoding": "base64",
-        })
-        if r.status_code != 201:
-            print(f"  [ERROR] blob {filepath}: {r.status_code} {r.json()}")
+        sha = create_blob(filepath, content)
+        if sha is None:
+            print(f"  [ERROR] Failed to create blob for {filepath} after retries.")
             return False
         tree_items.append({
             "path": filepath, "mode": "100644",
-            "type": "blob",   "sha":  r.json()["sha"],
+            "type": "blob",   "sha":  sha,
         })
         print(f"  [blob]   {filepath}")
 
