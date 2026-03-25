@@ -2,7 +2,7 @@ name: Project 1 Generator (5:00 PM PKT)
 
 on:
   schedule:
-    - cron: '10 11 * * *'   # 4:10 PM PKT  =  11:10 AM UTC  (PKT is UTC+5)
+    - cron: '0 12 * * *'    # 5:00 PM PKT  =  12:00 PM UTC  (PKT is UTC+5)
   workflow_dispatch:          # also allow manual trigger from Actions tab
 
 jobs:
@@ -37,13 +37,13 @@ jobs:
           secure: true
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_PASS }}
-          subject: "✅ Project 1 Created — ${{ github.run_number }}"
+          subject: "✅ Project 1 Created — Run #${{ github.run_number }}"
           to: ${{ secrets.GMAIL_USER }}
           from: GitHub Actions <${{ secrets.GMAIL_USER }}>
           body: |
             ✅ Project 1 (5:00 PM PKT) created successfully!
 
-            📅 Date      : ${{ github.event.repository.updated_at }}
+            📅 Date      : ${{ github.run_started_at }}
             ⏰ Time      : 5:00 PM PKT
             🔢 Run #     : ${{ github.run_number }}
             📋 Workflow  : ${{ github.workflow }}
