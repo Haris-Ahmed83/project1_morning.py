@@ -33,11 +33,10 @@ print("\nValidating GitHub token...")
 token_check = requests.get("https://api.github.com/user", headers=HEADERS)
 if token_check.status_code != 200:
     print(f"  [ERROR] Token invalid or missing! HTTP {token_check.status_code}")
-    print(f"  Fix: Go to GitHub → Settings → Developer settings → Personal access tokens")
+    print(f"  Fix: Go to GitHub -> Settings -> Developer settings -> Personal access tokens")
     print(f"       Create a CLASSIC token with 'repo' (full) scope checked.")
     exit(1)
 
-# Check scopes — classic token must have 'repo' scope
 scopes = token_check.headers.get("X-OAuth-Scopes", "")
 print(f"  [OK]  Token valid. Scopes: '{scopes}'")
 if "repo" not in scopes:
@@ -135,7 +134,7 @@ _words = [w for w in topic.lower().split() if w not in _stop][:3]
 repo_name = "-".join(_words).replace(",","").replace("(","").replace(")","").replace("/","-")
 
 print(f"{'='*60}")
-print(f"  PROJECT 1  —  5:00 PM PKT")
+print(f"  PROJECT 1  ---  5:00 PM PKT")
 print(f"  Date    : {today}")
 print(f"  Topic   : {topic}")
 print(f"  Project : {topic_index + 1} of {len(TOPICS)}")
@@ -146,7 +145,6 @@ print(f"{'='*60}\n")
 #  GEMINI — MODEL FALLBACK + RETRY
 # ============================================================
 def gemini_generate(client, prompt):
-    """Try each model. On 429 wait 65s and retry once, then try next model."""
     for model in MODELS:
         print(f"  [Model] Trying {model} ...")
         for attempt in range(1, 3):
@@ -168,7 +166,6 @@ def gemini_generate(client, prompt):
     raise RuntimeError("All Gemini models exhausted. Quota resets ~1 PM PKT.")
 
 def strip_fences(text, lang=""):
-    """Remove markdown code fences from AI output."""
     text = re.sub(rf"^```{lang}\n?", "", text.strip())
     text = re.sub(r"\n?```$", "", text.strip())
     return text.strip()
@@ -236,22 +233,24 @@ GITIGNORE = (
 print("  All files generated!\n")
 
 # ============================================================
-#  DELETE EMPTY REPO IF IT EXISTS (clean slate)
+#  HELPER: CHECK REPO STATE
 # ============================================================
-def repo_exists() -> bool:
+def get_repo_info():
+    """Returns (exists: bool, is_empty: bool)"""
     r = requests.get(
         f"https://api.github.com/repos/{GITHUB_USER}/{repo_name}",
         headers=HEADERS
     )
-    return r.status_code == 200
+    if r.status_code != 200:
+        return False, True
 
-def repo_is_empty_check() -> bool:
-    """Returns True if repo exists but has no commits yet."""
-    r = requests.get(
+    # Check if repo has any commits by looking for default branch ref
+    refs = requests.get(
         f"https://api.github.com/repos/{GITHUB_USER}/{repo_name}/git/refs",
         headers=HEADERS
     )
-    return r.status_code == 200 and r.json() == []
+    is_empty = (refs.status_code != 200) or (refs.json() == []) or (isinstance(refs.json(), dict))
+    return True, is_empty
 
 def delete_repo():
     r = requests.delete(
@@ -260,63 +259,83 @@ def delete_repo():
     )
     return r.status_code == 204
 
-if repo_exists():
-    if repo_is_empty_check():
-        print(f"  [Fix] Repo '{repo_name}' exists but is empty (broken state).")
-        print(f"  [Fix] Deleting it for a clean start...")
-        if delete_repo():
-            print(f"  [OK]  Deleted. Recreating fresh...\n")
-            time.sleep(3)   # ✅ FIX: wait for GitHub to fully process deletion
-        else:
-            print(f"  [ERROR] Could not delete repo. Check token has 'delete_repo' scope.")
-            exit(1)
-    else:
-        print(f"  [Info] Repo exists and has commits — will update files.\n")
+def wait_for_repo_ready(max_wait=30):
+    """Poll until the repo has at least one commit (branch ref exists)."""
+    print(f"  [Wait] Waiting for GitHub to initialize repo...")
+    for i in range(max_wait // 3):
+        time.sleep(3)
+        r = requests.get(
+            f"https://api.github.com/repos/{GITHUB_USER}/{repo_name}/git/ref/heads/main",
+            headers=HEADERS
+        )
+        if r.status_code == 200:
+            print(f"  [OK]   Repo initialized with initial commit.")
+            return True
+    print(f"  [WARN] Repo may not be fully initialized yet, proceeding anyway...")
+    return False
 
 # ============================================================
-#  CREATE GITHUB REPO
+#  STEP 1: HANDLE EXISTING REPO
+# ============================================================
+exists, is_empty = get_repo_info()
+
+if exists and is_empty:
+    print(f"  [Fix] Repo '{repo_name}' exists but is EMPTY (no commits).")
+    print(f"  [Fix] Deleting for a clean start...")
+    if delete_repo():
+        print(f"  [OK]  Deleted successfully.")
+        time.sleep(5)
+        exists = False
+    else:
+        print(f"  [ERROR] Could not delete repo. Check 'delete_repo' scope on token.")
+        exit(1)
+elif exists and not is_empty:
+    print(f"  [Info] Repo '{repo_name}' exists with commits — will update files.\n")
+
+# ============================================================
+#  STEP 2: CREATE REPO (if needed)
 # ============================================================
 description = (
     f"Daily Python Project #{topic_index + 1}/{len(TOPICS)}: "
     f"{topic[:80]} | {today} | by HarisAhmed83"
 )
 
-print(f"Creating repo '{repo_name}' on GitHub...")
-res = requests.post(
-    "https://api.github.com/user/repos",
-    headers=HEADERS,
-    json={
-        "name":        repo_name,
-        "description": description,
-        "private":     False,
-        "auto_init":   False,
-        "has_issues":  True,
-    }
-)
+if not exists:
+    print(f"Creating repo '{repo_name}' on GitHub...")
+    res = requests.post(
+        "https://api.github.com/user/repos",
+        headers=HEADERS,
+        json={
+            "name":        repo_name,
+            "description": description,
+            "private":     False,
+            "auto_init":   True,     # <-- THE KEY FIX: creates initial commit with README
+            "has_issues":  True,
+        }
+    )
 
-if res.status_code == 201:
-    print(f"  [OK]  Repo created fresh!")
-elif res.status_code == 422:
-    print(f"  [OK]  Repo already exists with commits — will update files.")
-else:
-    print(f"  [ERROR] {res.status_code}: {res.json().get('message')}")
-    exit(1)
+    if res.status_code == 201:
+        print(f"  [OK]  Repo created with auto_init!")
+    elif res.status_code == 422:
+        print(f"  [OK]  Repo already exists (race condition), continuing...")
+    else:
+        print(f"  [ERROR] {res.status_code}: {res.json().get('message')}")
+        exit(1)
 
-# ✅ FIX: Wait for GitHub to fully initialize the repo's Git database
-# Without this, the Git Data API returns 404 on blob creation (race condition)
-print("  [Wait] Allowing GitHub to initialize repo internals...")
-time.sleep(5)
+    # Wait for GitHub to fully initialize the repo with its initial commit
+    wait_for_repo_ready(max_wait=30)
 
 # ============================================================
-#  DETECT DEFAULT BRANCH
+#  STEP 3: DETECT DEFAULT BRANCH
 # ============================================================
-repo_info      = requests.get(
+repo_info = requests.get(
     f"https://api.github.com/repos/{GITHUB_USER}/{repo_name}",
     headers=HEADERS
 ).json()
 default_branch = repo_info.get("default_branch", "main")
 
-branch_check  = requests.get(
+# Re-check if empty after creation
+branch_check = requests.get(
     f"https://api.github.com/repos/{GITHUB_USER}/{repo_name}/git/ref/heads/{default_branch}",
     headers=HEADERS
 )
@@ -324,79 +343,21 @@ is_empty = (branch_check.status_code == 404)
 print(f"  [Info] Empty: {is_empty} | Branch: {default_branch}\n")
 
 # ============================================================
-#  PUSH — Git Data API (first commit on empty repo)
-# ============================================================
-def push_initial_commit(files: dict) -> bool:
-    """One atomic commit with all files using the Git Data API."""
-    base = f"https://api.github.com/repos/{GITHUB_USER}/{repo_name}/git"
-
-    # ✅ FIX: Retry blob creation up to 3 times in case GitHub isn't ready yet
-    def create_blob(filepath, content, retries=3, delay=4):
-        for attempt in range(1, retries + 1):
-            r = requests.post(f"{base}/blobs", headers=HEADERS, json={
-                "content":  base64.b64encode(content.encode("utf-8")).decode("utf-8"),
-                "encoding": "base64",
-            })
-            if r.status_code == 201:
-                return r.json()["sha"]
-            print(f"  [Retry {attempt}/{retries}] blob {filepath}: {r.status_code} {r.json()}")
-            if attempt < retries:
-                time.sleep(delay)
-        return None
-
-    tree_items = []
-    for filepath, content in files.items():
-        sha = create_blob(filepath, content)
-        if sha is None:
-            print(f"  [ERROR] Failed to create blob for {filepath} after retries.")
-            return False
-        tree_items.append({
-            "path": filepath, "mode": "100644",
-            "type": "blob",   "sha":  sha,
-        })
-        print(f"  [blob]   {filepath}")
-
-    r = requests.post(f"{base}/trees", headers=HEADERS, json={"tree": tree_items})
-    if r.status_code != 201:
-        print(f"  [ERROR] tree: {r.status_code} {r.json()}")
-        return False
-    tree_sha = r.json()["sha"]
-    print(f"  [tree]   {tree_sha[:10]}...")
-
-    r = requests.post(f"{base}/commits", headers=HEADERS, json={
-        "message": f"Initial commit: {topic[:60]}",
-        "tree":    tree_sha,
-        "parents": [],
-    })
-    if r.status_code != 201:
-        print(f"  [ERROR] commit: {r.status_code} {r.json()}")
-        return False
-    commit_sha = r.json()["sha"]
-    print(f"  [commit] {commit_sha[:10]}...")
-
-    r = requests.post(f"{base}/refs", headers=HEADERS, json={
-        "ref": f"refs/heads/{default_branch}",
-        "sha": commit_sha,
-    })
-    if r.status_code not in (200, 201):
-        print(f"  [ERROR] ref: {r.status_code} {r.json()}")
-        return False
-    print(f"  [ref]    refs/heads/{default_branch} ✅")
-    return True
-
-# ============================================================
-#  PUSH — Contents API (update existing repo)
+#  PUSH — Contents API (works for BOTH new and existing repos)
 # ============================================================
 def push_file(filepath, content, commit_msg) -> bool:
-    """Update or create a single file via the Contents API."""
+    """Create or update a single file via the Contents API."""
     url = f"https://api.github.com/repos/{GITHUB_USER}/{repo_name}/contents/{filepath}"
     body = {
         "message": commit_msg,
         "content": base64.b64encode(content.encode("utf-8")).decode("utf-8"),
+        "branch":  default_branch,
     }
+    # Check if file already exists (need its SHA to update)
     existing = requests.get(url, headers=HEADERS)
     if existing.status_code == 200:
         body["sha"] = existing.json().get("sha")
+
     r = requests.put(url, headers=HEADERS, json=body)
     if r.status_code in (200, 201):
         return True
@@ -404,7 +365,7 @@ def push_file(filepath, content, commit_msg) -> bool:
     return False
 
 # ============================================================
-#  RUN THE RIGHT PUSH STRATEGY
+#  PUSH ALL FILES (always use Contents API — simple and reliable)
 # ============================================================
 all_files = {
     "src/main.py":      code,
@@ -414,22 +375,15 @@ all_files = {
 }
 
 print("Pushing files to GitHub...")
+print(f"  [Strategy] Contents API — one file at a time\n")
 
-if is_empty:
-    print("  [Strategy] Git Data API — initial commit\n")
-    success = push_initial_commit(all_files)
-    results = {f: success for f in all_files}
-    if success:
-        for f in all_files:
-            print(f"  ✅  {f}")
-else:
-    print("  [Strategy] Contents API — updating files\n")
-    results = {}
-    for filepath, content in all_files.items():
-        ok = push_file(filepath, content, f"Update: {filepath}")
-        results[filepath] = ok
-        print(f"  {'✅' if ok else '❌'}  {filepath}")
-        time.sleep(1)
+results = {}
+for filepath, content in all_files.items():
+    ok = push_file(filepath, content, f"Add {filepath}: {topic[:50]}")
+    results[filepath] = ok
+    status = "OK" if ok else "FAIL"
+    print(f"  [{status}]  {filepath}")
+    time.sleep(2)  # small delay between API calls to avoid rate limits
 
 # ============================================================
 #  FINAL STATUS
@@ -437,12 +391,13 @@ else:
 failed = [f for f, ok in results.items() if not ok]
 print(f"\n{'='*60}")
 if not failed:
-    print(f"  ✅ SUCCESS — Project {topic_index + 1}/{len(TOPICS)}")
-    print(f"  🔗 https://github.com/{GITHUB_USER}/{repo_name}")
+    print(f"  SUCCESS — Project {topic_index + 1}/{len(TOPICS)}")
+    print(f"  {repo_name}")
+    print(f"  https://github.com/{GITHUB_USER}/{repo_name}")
 else:
-    print(f"  ❌ PARTIAL FAILURE — files NOT pushed:")
+    print(f"  PARTIAL FAILURE — files NOT pushed:")
     for f in failed:
-        print(f"     • {f}")
-    print(f"  🔗 https://github.com/{GITHUB_USER}/{repo_name}")
+        print(f"     - {f}")
+    print(f"  https://github.com/{GITHUB_USER}/{repo_name}")
     exit(1)
 print(f"{'='*60}\n")
