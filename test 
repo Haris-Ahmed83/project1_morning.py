@@ -1,0 +1,46 @@
+# ============================================
+#         Simple File Read/Write in Python
+# ============================================
+
+# --- FILE WRITE (naya file banao ya overwrite karo) ---
+def write_file(filename, content):
+    with open(filename, "w") as file:
+        file.write(content)
+    print(f"✅ File '{filename}' mein likha gaya!")
+
+
+# --- FILE READ (file parho) ---
+def read_file(filename):
+    try:
+        with open(filename, "r") as file:
+            content = file.read()
+        print(f"📄 File ka content:\n{content}")
+    except FileNotFoundError:
+        print(f"❌ File '{filename}' nahi mili!")
+
+
+# --- FILE APPEND (file mein aur add karo) ---
+def append_file(filename, content):
+    with open(filename, "a") as file:
+        file.write(content)
+    print(f"✅ File '{filename}' mein content add ho gaya!")
+
+
+# ============================================
+#               MAIN PROGRAM
+# ============================================
+
+filename = "meri_file.txt"
+
+# 1. File mein likho
+write_file(filename, "Assalam o Alaikum!\nYeh meri pehli file hai.\n")
+
+# 2. File parho
+read_file(filename)
+
+# 3. File mein aur content add karo
+append_file(filename, "Yeh line baad mein add ki gayi.\n")
+
+# 4. Dobara parho
+print("\n--- Updated File ---")
+read_file(filename)
