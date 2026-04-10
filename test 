@@ -9,6 +9,18 @@ def write_file(filename, content):
     print(f"✅ File '{filename}' mein likha gaya!")
 
 
+
+test test
+test
+t|stnsjs
+hsjsjs
+sbjsnsks
+dididd
+fd
+d
+d
+dd
+
 # --- FILE READ (file parho) ---
 def read_file(filename):
     try:
