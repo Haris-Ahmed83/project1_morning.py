@@ -1,4 +1,4 @@
-# ============================================
+fs# ============================================
 #         Simple File Read/Write in Python
 # ============================================
 
@@ -6,7 +6,7 @@
 def write_file(filename, content):
     with open(filename, "w") as file:
         file.write(content)
-    print(f"✅ File '{filename}' mein likha gaya!")
+    print(f"✅ File '{filename}' mein sfflikha gaya!")
 
 
 
